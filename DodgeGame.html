@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script src="http://code.jquery.com/jquery-1.11.0.min.js"></script>
+    <meta charset="UTF-8">
+    <title>공공공</title>
+    <style>
+        input{
+            align-content : left;
+        }
+        body{
+            margin : 0px;
+        }
+
+        canvas{
+            background-color : wheat;
+            border : 1px solid black;
+        }
+
+    </style>
+</head>
+<body onload="initialize()">
+    <br>
+    <strong>Please Choose Revel ===> </strong>
+    <input type="button" value="Revel-easy" id="10">
+    <input type="button" value="Revel-expert" id="20">
+    <input type="button" value="Revel-hard" id="30">
+    <input type="button" value="Revel-Hell" id="40">
+    <br><br>
+    <div>
+        <canvas id="canvas" width="800" height="600"></canvas>
+    </div>
+
+<script>
+
+    var canvas =  document.getElementById("canvas");
+    var canvasCtx;
+
+    //더블 버퍼링을 위한 버퍼 객체
+    var canvasBuffer;
+    var bufferCtx;
+
+    //유닛 객체
+    var playerUnit = {};
+
+    //이미지 객체
+    var spaceShip;
+
+    //유닛 이동을 위해 입력받은 키를 기록할 배열
+    //window.onKeyDown 으로 달아줄 경우에 대각선 움직임이 제한됨
+    var keyPressed = [];
+
+    //장애물 레벨에 따라 다른 장해물 숫자 지정
+    var ballsNum;
+    var balls = [];
+
+    //다 먹을시 승리하게 되는 공들
+    var victorys = [];
+
+    //승리 패배 확인 용
+    var victoryOrDefeat = null;
+
+    //게임 루프(setInterval 의 return value)
+    var startGameLoop;
+    //루프가 돌 간격
+    var loopSpeed = 15;
+    //루프 시작 여부
+    var gameStared = false;
+    var startTime;
+
+    //모든  input 태그에 이벤트 지정 클릭된 레벨의
+    // id값을 숫자로 변환 해 장해물 갯수로 지정
+    $('input').on('click' , function (event) {
+
+        alert("you clicked " + event.target.value);
+
+        ballsNum = parseInt(event.target.id);
+    });
+
+    function initialize() {
+
+        //context 2d 객체 획득
+        canvasCtx = canvas.getContext("2d");
+
+        //캔버스 버퍼 객체 설정
+        canvasBuffer = document.createElement("canvas");
+        canvasBuffer.width = canvas.width;
+        canvasBuffer.height = canvas.height;
+
+        //버퍼 canvas 의 context 획득
+        bufferCtx = canvasBuffer.getContext("2d");
+
+        //문서에 key 이벤트 설정
+        document.addEventListener('keydown', getKeyDown, false);
+        document.addEventListener('keyup', getKeyUp, false);
+
+        //우주선 이미지 셋업
+        setUnitImg();
+
+        //게임 시작 화면 설정
+        canvasCtx.fillStyle = "red";
+        canvasCtx.font = "bold 30px _sans";
+        canvasCtx.textBaseline = "top";
+        canvasCtx.fillText("please Enter", 300, 250);
+    }
+
+    function startGame() {
+        //유닛 속성 설정
+        playerUnit = {
+            //유닛 좌표 값
+            x: canvas.width/2 , y: canvas.height/2,
+            //유닛 크기 / 키보드 이벤트 발생 시 이동 거리
+            width : 36 , height : 36 , moveLength:4
+        };
+
+        //장해물 객체 설정 => 클릭한 레벨에 따라 다른 장해물 숫자
+        createBalls(ballsNum);
+        //승리조건 공 생성
+        forVictory(6);
+
+        //플레이 시간을 구하기 위해 시작 시간 기록
+        startTime = new Date();
+
+        startGameLoop = setInterval(gameLoop, loopSpeed);
+        gameStared = true;
+    }
+
+    function forVictory(ballCount) {
+
+        for(let i = 0 ; i < ballCount ; i++){
+
+            var randXPosition = 1 + Math.floor(Math.random() * canvas.width-1);
+            var randYPosition = 1 + Math.floor(Math.random() * canvas.height-1);
+
+            var vic = {x : randXPosition , y: randYPosition, radius : 8 , id : i};
+            victorys.push(vic);
+        }
+    }
+
+    function createBalls(ballCount) {
+        //입력한 숫자만큼 장해물 생성
+
+        for(let i = 0 ; i < ballCount ; i++){
+
+            //장해물 객체의 랜덤 위치 생성
+            var randXPosition = 1 + Math.floor(Math.random() * canvas.width-1);
+            var randYPosition = 1 + Math.floor(Math.random() * canvas.height-1);
+
+            //생성되는 공 객체들을 랜덤으로 게임 화면에 가장 자리로 보냄
+            var startSpot = Math.floor(Math.random() * 4);
+
+            //생성된 랜덤 수에 값에 따라 각각 다른 가장자리로 위치
+            if(startSpot == 1)
+                randXPosition = 0;
+            else if(startSpot == 2)
+                randXPosition = canvas.width;
+            else if(startSpot == 3)
+                randYPosition = canvas.height;
+            else if(startSpot == 4)
+                randYPosition = 0;
+
+            //랜덤 가로축 세로축 속도 지정
+            var randXSpeed = 1 + Math.floor(Math.random() * 6);
+            var randYSpeed = 1 + Math.floor(Math.random() * 6);
+
+            var ball = {moveX : randXSpeed , moveY: randYSpeed ,x: randXPosition , y: randYPosition, radius:6};
+            balls.push(ball);
+        }
+    }
+
+    function gameOver() {
+        //게임 종료 시 게임 루프 제거
+        clearInterval(startGameLoop);
+        gameStared = false;
+    }
+
+    //우주선 이미지
+    function setUnitImg(){
+
+        spaceShip = new Image();
+        spaceShip.src= "spaceShip.png";
+    }
+
+    /* 키보드 이벤트 설정 */
+    function getKeyDown(event) {
+        //게임은 무한루프로 돌기 때문에 아무 입력도 없을 시 그냥 return 하고 계속 진행시킴
+        if(event == null){
+            return;
+        }else {
+            console.log(event.keyCode + " : Push");
+
+            //방향키 입력에 따른 기본 이벤트 제거
+            event.preventDefault();
+        }
+
+        //keyDown 이벤트 들어온 키 값에 대해서 true 값 설정
+        keyPressed[event.keyCode] = true;
+
+    }
+
+    function getKeyUp(event) {
+
+        if(event == null) {
+            null;
+        }else{
+            //기본 이벤트 제거
+            console.log(event.keyCode + " : keyUp");
+            event.preventDefault();
+        }
+        // up 된 키에 대해 false 설정
+        keyPressed[event.keyCode] = false;
+
+        //게임이 시작된 상태가 아닐 때 enter 키 입력이 실행 => 게임 스타트
+        if(event.keyCode == "13" && !gameStared) {
+            //엔터 키 ==> 리스타트 일 경우도 있기 때문에 기존 장해물 제거
+            while(balls.length){
+                balls.pop();
+            }
+
+            //승리용 공도 초기화
+            while(victorys.length){
+                victorys.pop();
+            }
+
+            //승패 여부 초기화
+            victoryOrDefeat = null;
+
+            //게임 시작
+            startGame();
+        }
+    }
+
+    function gameLoop() {
+
+        //유닛 이동
+        unitMoving();
+        //적 이동
+        ballMoving();
+        //두가지 값을 가지고 화면을 다시 그림
+        setDisplay();
+    }
+
+    function unitMoving() {
+
+        //각 키보드 값이 true &&
+        //유닛의 중심 좌표값이 유닛 객체의 반이 소실될 때 까지만 이동 가능하도록 설정
+
+        //Up
+        if(keyPressed["38"] && (playerUnit.y >= -playerUnit.height/2)) {
+            console.log("unitMoving Event UP");
+            playerUnit.y -= playerUnit.moveLength;
+        }
+
+        //Down
+        if(keyPressed["40"] && (playerUnit.y <= canvas.height -playerUnit.height/2)) {
+            console.log("unitMoving Event Down");
+            playerUnit.y += playerUnit.moveLength;
+        }
+
+        //Left
+        if(keyPressed["37"] && (playerUnit.x >= -playerUnit.width/2)) {
+            console.log("unitMoving Event Left");
+            playerUnit.x -= playerUnit.moveLength;
+        }
+
+        //Right
+        if(keyPressed["39"] && (playerUnit.x <= canvas.width -playerUnit.width/2)) {
+            console.log("unitMoving Event Right");
+            playerUnit.x += playerUnit.moveLength;
+        }
+
+    }
+
+    //적 공의 움직임
+    function ballMoving() {
+
+        //공 반사 시키기
+        for (let i = 0; i < balls.length; i++) {
+
+            //공이 벽에 부딪히면 튕겨 나오도록 설정
+            if (balls[i].y + balls[i].moveY< 0 ||
+                balls[i].y + balls[i].moveY> canvas.height )
+            {
+                balls[i].moveY = -balls[i].moveY;
+            }
+
+            if (balls[i].x + balls[i].moveX < 0 ||
+                balls[i].x + balls[i].moveX > canvas.width)
+            {
+                balls[i].moveX = -balls[i].moveX;
+            }
+
+            balls[i].x += balls[i].moveX;
+            balls[i].y += balls[i].moveY;
+
+            //공 끼리 충돌 감지 해서 서로 튕겨내기기
+            collision();
+
+        }
+    }
+
+    //공과 공의 충돌 발생시 반대로 튕기게 설정
+    function collision() {
+
+        var crash;
+
+        for(let i  = 0 ; i < balls.length; i++){
+            for(let j = + 1 ; j < balls.length; j++){
+
+                //원 사이의 거리가 반지름의 합보다 작을 시 충돌
+                crash = Math.sqrt( (balls[i].x - balls[j].x) * (balls[i].x - balls[j].x) +
+                    (balls[i].y - balls[j].y) * (balls[i].y - balls[j].y) );
+                //충돌 발생 시 ball 객체의 튕기는 방향을 반전시킴
+                if(crash <= balls[i].radius + balls[j].radius){
+                    balls[i].moveX = -balls[i].moveX;
+                    balls[i].moveY = -balls[i].moveY;
+                }
+            }
+        }
+
+    }
+
+    //우주선 화면에 찍기
+    function playerPrintScreen() {
+        bufferCtx.drawImage(spaceShip, //그릴 이미지 선택
+            //컨텍스트  width 0 / height 0으로부터 떨어진 거리 설정 (x,y 좌표 설정 )
+            playerUnit.x , playerUnit.y,
+            //이미지 크기 설정
+            playerUnit.width, playerUnit.height
+
+        );
+
+        //공에 부딪힌 여부 체크 후 게임 정지
+        if(isHitted()){
+            victoryOrDefeat = false;
+            gameOver();
+        }
+        //파란 공을 전부 먹을 시 게임 종료
+        if(getVictoryBall() == 0){
+            victoryOrDefeat = true;
+            gameOver();
+        }
+    }
+
+    function ballPrintScreen() {
+
+        for(let i = 0 ; i < balls.length ; i++) {
+            //원 그리기
+            bufferCtx.fillStyle = "red";
+
+            bufferCtx.beginPath();
+            bufferCtx.arc(balls[i].x, balls[i].y, balls[i].radius, 0, Math.PI * 2, false);
+            bufferCtx.closePath();
+
+            bufferCtx.fill();
+        }
+
+        for(let i = 0 ; i < victorys.length ; i++){
+            //승리 조건용 원 그리기
+            bufferCtx.fillStyle ='blue';
+
+            bufferCtx.beginPath();
+            bufferCtx.arc(victorys[i].x , victorys[i].y, victorys[i].radius , 0 , Math.PI * 2, false);
+            bufferCtx.closePath();
+
+            bufferCtx.fill();
+        }
+
+    }
+
+    function getVictoryBall() {
+
+        for(let i = 0 ; i < victorys.length ; i++) {
+
+            //플레이어의 우주선이 파란 공을 먹을 시 해당 파란 공 삭제
+            var disX = (playerUnit.x + playerUnit.width) - victorys[i].x;
+            var disY = (playerUnit.y + playerUnit.height) - victorys[i].y;
+            var dis = disX * disX + disY * disY;
+
+            if (dis <= (victorys[i].radius + (playerUnit.width))
+                * (victorys[i].radius + (playerUnit.height)))
+            {
+                //해당 인덱스의 값 삭제 후 남은 승리공 갯수 리턴
+                victorys.splice(victorys[i].id, 1);
+                return victorys.length;
+            }
+
+            //배열 원소 삭제 시 인덱스가 당겨지는 문제 때문에 id 값도 당겨진 인덱스 값으로 설정
+            for(let j = 0 ; j < victorys.length ; j++){
+                victorys[j].id = j;
+            }
+        }
+
+    }
+
+    //공에 맞았는지 여부 확인
+    function isHitted() {
+
+        var hit = false;
+
+        for(let i = 0 ; i < balls.length ; i++) {
+
+            var disX = (playerUnit.x + playerUnit.width / 2) - balls[i].x;
+            var disY = (playerUnit.y + playerUnit.height / 2) - balls[i].y;
+            var dis = disX * disX + disY * disY;
+
+            if (dis <= (balls[i].radius + (playerUnit.width / 2 - 5))
+                * (balls[i].radius + (playerUnit.height / 2 - 5)))
+            {
+                hit = true;
+                break;
+            }
+        }
+
+        return hit;
+    }
+
+
+    function setDisplay() {
+
+        bufferCtx.fillStyle = '#edd3ff';
+        bufferCtx.fillRect(0, 0, canvas.width, canvas.height);
+
+        playerPrintScreen();
+        ballPrintScreen();
+
+        // console.log("set display Event");
+        //설정이 끝난 bufferCtx 를 바탕 context 에 그리기
+        canvasCtx.drawImage(canvasBuffer,0,0);
+
+        printRecode(victoryOrDefeat);
+    }
+
+    function printRecode(vOfD) {
+
+        //승패가 정해지지 않았을 시 출력하지 않음
+        if(vOfD == null){
+            return;
+        }
+
+        //게임이 끝난 화면 설정
+        if(vOfD == false){
+
+            canvasCtx.fillStyle = "red";
+            canvasCtx.font = "bold 30px _sans";
+            canvasCtx.textBaseline = "top";
+            canvasCtx.fillText("Enter to Restart", 210, 250);
+
+        }else if(vOfD == true){
+
+            canvasCtx.fillStyle = "blue";
+            canvasCtx.font = "bold 30px _sans";
+            canvasCtx.textBaseline = "top";
+            canvasCtx.fillText("Congratulation!! YOU WIN !!!", 150, 250);
+        }
+
+        //기록은 공통 출력
+        getRecode();
+
+    }
+
+    //기록 출력
+    function getRecode() {
+
+        //게임 플레이 시간 획득
+        var stopTime = new Date();
+        var playTime = (stopTime.getTime() - startTime.getTime())/1000;
+
+        canvasCtx.fillStyle = "#000000";
+        canvasCtx.font = "bold 15px _sans";
+        canvasCtx.textBaseline = "top";
+
+        //출력
+        return canvasCtx.fillText("Your Record : " + playTime + " Seconds", 212, 300);
+    }
+
+</script>
+</body>
+</html>
